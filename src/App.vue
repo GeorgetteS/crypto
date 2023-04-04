@@ -75,9 +75,26 @@
 
       <template v-if="tickers.length">
         <hr class="w-full border-t border-gray-600 my-4" />
+
+        <div>
+          <button
+            v-if="page > 1"
+            @click="page = page - 1"
+            class="my-4 mx-2 di inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+            Назад
+          </button>
+          <button
+            v-if="hasNextPage"
+            @click="page = page + 1"
+            class="my-4 mx-2 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+            Вперед
+          </button>
+          фильтр:<input v-model="filter" />
+        </div>
+        <hr class="w-full border-t border-gray-600 my-4" />
         <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
           <div
-            v-for="t in tickers"
+            v-for="t in filterTickers()"
             :key="t.name"
             @click="select(t)"
             :class="{
@@ -156,6 +173,8 @@ export default {
   data() {
     return {
       ticker: '',
+      filter: '',
+      page: 1,
       tickers: [],
       tockens: [],
       tips: [],
@@ -163,6 +182,7 @@ export default {
       sel: null,
       isLoading: true,
       isError: false,
+      hasNextPage: false,
     };
   },
   mounted: async function load() {
@@ -180,6 +200,14 @@ export default {
   },
 
   created() {
+    const windowData = Object.fromEntries(new URL(window.location).searchParams.entries());
+    if (windowData.filter) {
+      this.filter = windowData.filter;
+    }
+    if (windowData.page) {
+      this.page = +windowData.page;
+    }
+
     const tickersData = localStorage.getItem('cryptonomicon-list');
     if (tickersData) {
       this.tickers = JSON.parse(tickersData);
@@ -196,8 +224,6 @@ export default {
         );
 
         const data = await res.json();
-
-        console.log(data);
 
         this.tickers.find((ticker) => ticker.name === name).price =
           data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
@@ -222,6 +248,7 @@ export default {
       this.ticker = '';
       this.isError = false;
       this.subscribeToUpdate(currentTicker.name);
+      this.filter = '';
       localStorage.setItem('cryptonomicon-list', JSON.stringify(this.tickers));
     },
     remove(id) {
@@ -248,10 +275,49 @@ export default {
       }
     },
     normalizeGraph() {
-      // console.log(this.normalizeGraph());
       const minValue = Math.min(...this.graph);
       const maxValue = Math.max(...this.graph);
       return this.graph.map((price) => 5 + ((price - minValue) * 95) / (maxValue - minValue));
+    },
+
+    filterTickers() {
+      const start = (this.page - 1) * 6;
+      const end = this.page * 6;
+
+      const filteredTickers = this.tickers.filter((t) =>
+        t.name.toLowerCase().includes(this.filter.toLowerCase()),
+      );
+
+      this.hasNextPage = end < filteredTickers.length;
+
+      console.log(this.page);
+      if (filteredTickers.length === start) {
+        this.page = this.page - 1;
+      }
+      // console.log(filteredTickers.length, start);
+
+      // console.log(this.page, 'asdfa');
+
+      return filteredTickers.slice(start, end);
+    },
+  },
+
+  watch: {
+    filter() {
+      this.page = 1;
+      window.history.pushState(
+        null,
+        document.title,
+        `${window.location.pathname}?filter=${this.filter}&page=${this.page}`,
+      );
+    },
+    page() {
+      // this.page = 1;
+      window.history.pushState(
+        null,
+        document.title,
+        `${window.location.pathname}?filter=${this.filter}&page=${this.page}`,
+      );
     },
   },
 };
